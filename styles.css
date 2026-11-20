@@ -108,6 +108,16 @@ code { font-size: .92em; }
     var(--card);
   box-shadow: 0 0 0 1px var(--border);
 }
+.top-left { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.back {
+  display: inline-flex; align-items: center; gap: 2px; margin-left: -8px;
+  padding: 6px 10px 6px 4px; border: 0; border-radius: var(--r-sm); background: none;
+  color: var(--accent); font: 700 .98rem var(--sans); cursor: pointer;
+}
+.back[hidden] { display: none; }
+.back:hover { background: var(--surface-2); }
+.top-left .back:not([hidden]) + .brand { padding-left: 10px; border-left: 1px solid var(--border); }
+#app { touch-action: pan-y pinch-zoom; }
 .top-right { display: flex; gap: 8px; align-items: center; color: var(--muted); font-size: .9rem; }
 
 main { max-width: 1180px; margin: 0 auto; padding: 32px 24px 72px; }
@@ -447,7 +457,8 @@ body.reh-mode main { max-width: none; padding: 0; }
 /* ---------- Responsive ---------- */
 @media (max-width: 860px) {
   main { padding: 20px 16px 56px; }
-  .topbar { padding: 10px 16px; }
+  .topbar { padding: 10px 16px; padding-top: max(10px, env(safe-area-inset-top)); }
+  .top-left .back:not([hidden]) + .brand .brand-name { display: none; }
   .hero { grid-template-columns: 1fr; gap: 32px; padding-bottom: 32px; margin-bottom: 28px; }
   .hero-card { transform: none; margin-right: 10px; }
   .home-grid, .editor, .practice, .imp-grid { grid-template-columns: 1fr; }

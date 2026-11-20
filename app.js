@@ -389,6 +389,8 @@ function render() {
     app.innerHTML = renderRehearsal();
   }
   document.body.classList.toggle('reh-mode', ui.view === 'rehearse' && ui.reh?.phase === 'live');
+  const back = $('#backBtn');
+  if (back) back.hidden = !canGoBack();
   if (installPrompt && ui.view !== 'rehearse') top.insertAdjacentHTML('beforeend', '<button class="btn small" data-act="install">⤓ Install app</button>');
 }
 
@@ -1151,6 +1153,60 @@ function importSave() {
   openPractice(deck.id);
 }
 
+/* ---------------------------- navigation ------------------------------- */
+
+// Every page sits one level below the home page (your presentations),
+// so "back" always goes there.
+function canGoBack() {
+  return ui.view !== 'home' && !(ui.view === 'rehearse' && ui.reh?.phase === 'live');
+}
+
+function goHome() {
+  if (ui.view === 'rehearse') exitRehearsal();
+  abortListening(); stopSpeaking(); ui.review = null; ui.view = 'home';
+  render(); window.scrollTo(0, 0);
+}
+
+// Swipe right to go back. Ignored where a sideways drag already means something
+// (text fields, sliders, the scrolling slide list, tables, the live rehearsal).
+(() => {
+  const NO_SWIPE = 'input, textarea, select, .slide-list, .table-wrap, .reh-live, .tbars';
+  let start = null;
+  const app = () => $('#app');
+  const reset = () => {
+    const a = app();
+    a.style.transition = 'transform .2s ease, opacity .2s ease';
+    a.style.transform = ''; a.style.opacity = '';
+    start = null;
+  };
+  document.addEventListener('touchstart', (e) => {
+    if (e.touches.length !== 1 || !canGoBack() || e.target.closest(NO_SWIPE)) { start = null; return; }
+    const t = e.touches[0];
+    start = { x: t.clientX, y: t.clientY, time: Date.now(), dragging: false };
+  }, { passive: true });
+  document.addEventListener('touchmove', (e) => {
+    if (!start) return;
+    const t = e.touches[0];
+    const dx = t.clientX - start.x, dy = t.clientY - start.y;
+    if (!start.dragging) {
+      if (Math.abs(dy) > 12 && Math.abs(dy) > Math.abs(dx)) { start = null; return; } // vertical scroll
+      if (dx > 12 && dx > Math.abs(dy) * 1.5) start.dragging = true; else return;
+    }
+    start.dx = Math.max(0, dx);
+    const a = app();
+    a.style.transition = 'none';
+    a.style.transform = `translateX(${start.dx * 0.5}px)`;
+    a.style.opacity = String(1 - Math.min(start.dx / 600, 0.35));
+  }, { passive: true });
+  document.addEventListener('touchend', () => {
+    if (!start) return;
+    const go = start.dragging && (start.dx > window.innerWidth * 0.3 || (start.dx > 60 && Date.now() - start.time < 300));
+    reset();
+    if (go) goHome();
+  });
+  document.addEventListener('touchcancel', () => { if (start) reset(); });
+})();
+
 /* ---------------------------- events ----------------------------------- */
 
 document.addEventListener('click', (e) => {
@@ -1160,8 +1216,8 @@ document.addEventListener('click', (e) => {
   const id = el.dataset.id;
   switch (act) {
     case 'home':
-      if (ui.view === 'rehearse') { exitRehearsal(); ui.view = 'home'; render(); break; }
-      abortListening(); stopSpeaking(); ui.review = null; ui.view = 'home'; render(); break;
+    case 'back':
+      goHome(); break;
     case 'review': openReview(id); break;
     case 'review-stop': ui.reviewCount = ui.review ? ui.review.pos : 0; ui.review = null; goStep('reviewdone'); break;
     case 'progress': abortListening(); stopSpeaking(); ui.review = null; ui.deckId = id; ui.view = 'progress'; render(); window.scrollTo(0, 0); break;
