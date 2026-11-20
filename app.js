@@ -424,15 +424,25 @@ function renderHome() {
   const s = data.settings;
   return `
     <section class="hero">
-      <h1>Rehearse your talk until you can give it without notes.</h1>
-      <p>Paste your script. For each sentence: listen, hide the text, say it aloud, and see which words you missed.
-         Then recite the whole slide from hint words, timed against your target.</p>
-      <div class="row">
-        <button class="btn primary" data-act="import">Import slides (.pptx / .pdf)</button>
-        <button class="btn" data-act="new">Paste a script</button>
-        <button class="btn" data-act="sample">Load sample</button>
-        <label class="btn">Import JSON<input type="file" id="importFile" accept=".json,application/json" hidden></label>
+      <div>
+        <h1>Rehearse your talk until you can give it without notes.</h1>
+        <p>Paste your script. For each sentence: listen, hide the text, say it aloud, and see which words you missed.
+           Then recite the whole slide from hint words, timed against your target.</p>
+        <div class="row">
+          <button class="btn primary" data-act="import">Import slides (.pptx / .pdf)</button>
+          <button class="btn" data-act="new">Paste a script</button>
+          <button class="btn" data-act="sample">Load sample</button>
+          <label class="btn">Import JSON<input type="file" id="importFile" accept=".json,application/json" hidden></label>
+        </div>
       </div>
+      <figure class="hero-card" aria-label="Example: a recited sentence with said, missed and hidden words" style="margin:0">
+        <div class="passage" aria-hidden="true"><span class="w hit">Last</span> <span class="w hit">quarter</span> <span class="w hit">we</span> <span class="w miss">halved</span> <span class="w hit">the</span> <span class="w hit">time</span> <span class="w hit">it</span> <span class="w hit">takes</span> <span class="w hit">to</span> <span class="mask" style="width:2.6em"></span> <span class="mask" style="width:1.4em"></span> <span class="mask" style="width:3.4em"></span></div>
+        <figcaption class="hero-legend">
+          <span><i style="background:color-mix(in srgb, var(--good) 35%, transparent)"></i>said</span>
+          <span><i style="background:var(--bad)"></i>missed</span>
+          <span><i style="background:var(--mask)"></i>still hidden</span>
+        </figcaption>
+      </figure>
     </section>
     <div class="home-grid">
       <section>

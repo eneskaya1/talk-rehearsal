@@ -3,14 +3,14 @@
 // - Libraries from the CDNs: cache first (they are versioned and never change).
 // - Everything else (e.g. the Claude API) is not touched.
 
-const VERSION = 'v1';
+const VERSION = 'v2';
 const APP_CACHE = `app-${VERSION}`;
 const LIB_CACHE = 'libs-v1';
 const APP_FILES = [
   './', 'index.html', 'styles.css', 'app.js', 'import.js', 'features.js', 'rehearsal.js',
   'manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png',
 ];
-const LIB_HOSTS = ['cdnjs.cloudflare.com', 'cdn.jsdelivr.net'];
+const LIB_HOSTS = ['cdnjs.cloudflare.com', 'cdn.jsdelivr.net', 'fonts.googleapis.com', 'fonts.gstatic.com'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(APP_CACHE).then((c) => c.addAll(APP_FILES)).then(() => self.skipWaiting()));
