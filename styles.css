@@ -374,6 +374,23 @@ textarea.script { font: 1.05rem/1.65 var(--serif); }
 }
 .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 
+/* ---------- Leave-page question ---------- */
+dialog.ask {
+  width: min(440px, calc(100% - 32px)); padding: 24px; border: 1px solid var(--border);
+  border-radius: var(--r-md); background: var(--surface); color: var(--text);
+  box-shadow: 0 24px 60px -20px rgba(28,27,51,.45);
+}
+dialog.ask::backdrop { background: color-mix(in srgb, var(--text) 40%, transparent); }
+dialog.ask h2 { margin-bottom: .35em; }
+dialog.ask p { color: var(--muted); }
+.ask-actions { display: flex; flex-direction: row-reverse; flex-wrap: wrap; gap: 8px; margin-top: 20px; }
+.ask-actions .btn.ghost { margin-right: auto; }
+@media (max-width: 480px) {
+  .ask-actions { flex-direction: column; }
+  .ask-actions .btn { width: 100%; padding: 12px 16px; }
+  .ask-actions .btn.ghost { margin-right: 0; }
+}
+
 /* ---------- Review, delivery, plan ---------- */
 .side-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 14px; }
 .delivery { margin: -4px 0 14px; }

@@ -65,6 +65,8 @@ function saveData() {
 }
 
 let data = loadData();
+// A sample stays unsaved until you choose to keep it (see leavePage).
+data.decks = data.decks.filter((d) => !d.unsaved);
 
 /* ---------------------------- script parsing --------------------------- */
 
@@ -374,7 +376,7 @@ function render() {
   const top = $('#topRight');
   top.innerHTML = '';
   if (ui.view === 'home') app.innerHTML = renderHome();
-  else if (ui.view === 'edit') { app.innerHTML = renderEditor(); updatePreview(); }
+  else if (ui.view === 'edit') { app.innerHTML = renderEditor(); updatePreview(); ui.editOrig = editorValues(); }
   else if (ui.view === 'import') app.innerHTML = renderImport();
   else if (ui.view === 'practice') {
     const deck = curDeck();
@@ -784,10 +786,10 @@ function next() {
   goStep('done');
 }
 
-function saveDeck() {
+function saveDeck({ open = true } = {}) {
   const script = $('#fScript').value;
   const parsed = parseScript(script);
-  if (!parsed.slides.length) { toast('Add some text to practise first.'); return; }
+  if (!parsed.slides.length) { toast('Add some text to practise first.'); return null; }
   const title = $('#fTitle').value.trim() || parsed.deckTitle || 'Untitled presentation';
   const lang = $('#fLang').value;
   let deck = ui.editId ? deckById(ui.editId) : null;
@@ -795,7 +797,8 @@ function saveDeck() {
   else { deck = { id: uid(), title, lang, script, progress: {}, updated: Date.now() }; data.decks.push(deck); }
   saveData();
   toast('Saved.');
-  openPractice(deck.id);
+  if (open) openPractice(deck.id);
+  return deck;
 }
 
 function openReview(id) {
@@ -873,7 +876,7 @@ After just one night of poor sleep, attention and reaction time drop sharply. Ov
 Sleep is the cheapest performance boost you will ever get. Tonight, give yourself one extra hour. Thank you.`;
 
 function loadSample() {
-  const deck = { id: uid(), title: 'Why Sleep Matters (sample)', lang: 'en-US', script: SAMPLE, progress: {}, updated: Date.now() };
+  const deck = { id: uid(), title: 'Why Sleep Matters (sample)', lang: 'en-US', script: SAMPLE, progress: {}, updated: Date.now(), unsaved: true };
   data.decks.push(deck);
   saveData();
   openPractice(deck.id);
@@ -1124,7 +1127,7 @@ async function importRegen(i) {
   render();
 }
 
-function importSave() {
+function importSave({ open = true } = {}) {
   const imp = ui.imp;
   const parts = [`# ${imp.title}`];
   const kept = [];
@@ -1135,7 +1138,7 @@ function importSave() {
     const title = s.title.replace(/[|#\[\]]/g, ' ').replace(/\s+/g, ' ').trim() || `Slide ${i + 1}`;
     parts.push(`## ${title} | ${fmt(imp.targets[i])}\n${text}`);
   });
-  if (parts.length === 1) { imp.error = 'All scripts are empty.'; render(); return; }
+  if (parts.length === 1) { imp.error = 'All scripts are empty.'; render(); return null; }
   const deck = {
     id: uid(), title: imp.title.trim() || 'Imported presentation', lang: imp.lang,
     script: parts.join('\n\n'), progress: {}, updated: Date.now(),
@@ -1149,8 +1152,9 @@ function importSave() {
   data.importDraft = null;
   ui.imp = null;
   saveData();
-  toast('Saved. Time to rehearse!');
-  openPractice(deck.id);
+  toast(open ? 'Saved. Time to rehearse!' : `Saved “${deck.title}”.`);
+  if (open) openPractice(deck.id);
+  return deck;
 }
 
 /* ---------------------------- navigation ------------------------------- */
@@ -1165,6 +1169,88 @@ function goHome() {
   if (ui.view === 'rehearse') exitRehearsal();
   abortListening(); stopSpeaking(); ui.review = null; ui.view = 'home';
   render(); window.scrollTo(0, 0);
+}
+
+const editorValues = () => ({ title: $('#fTitle')?.value ?? '', lang: $('#fLang')?.value ?? '', script: $('#fScript')?.value ?? '' });
+
+// What would be lost by leaving this page, if anything.
+function unsavedWork() {
+  if (ui.view === 'edit' && ui.editOrig) {
+    const now = editorValues(), was = ui.editOrig;
+    if (now.script.trim() && (now.script !== was.script || now.title !== was.title || now.lang !== was.lang)) return 'edit';
+  }
+  if (ui.view === 'import' && ui.imp?.slides?.length) return ui.imp.scripts ? 'import' : 'import-raw';
+  const deck = ['practice', 'progress', 'rehearse'].includes(ui.view) && deckById(ui.deckId);
+  if (deck?.unsaved) return 'sample';
+  return null;
+}
+
+// Go back to the presentations, first asking what to do with unsaved work.
+let leaving = false;
+async function leavePage() {
+  if (leaving) return;
+  const kind = unsavedWork();
+  if (!kind) return goHome();
+  leaving = true;
+  try {
+    if (kind === 'edit') {
+      const isNew = !ui.editId;
+      const c = await askChoice({
+        title: isNew ? 'Save this presentation?' : 'Save your changes?',
+        text: isNew ? 'It isn’t in your presentations yet.' : 'You’ve changed this presentation since you last saved it.',
+        choices: [['save', 'Save', 'primary'], ['discard', isNew ? 'Discard' : 'Discard changes', 'danger'], ['stay', 'Keep editing']],
+      });
+      if (c === 'save' && !saveDeck({ open: false })) return;
+      if (c === 'save' || c === 'discard') goHome();
+    } else if (kind === 'import' || kind === 'import-raw') {
+      const ready = kind === 'import';
+      const name = ui.imp.title || ui.imp.fileName || 'this presentation';
+      const c = await askChoice({
+        title: ready ? 'Save this presentation?' : 'Discard this import?',
+        text: ready ? `The scripts for “${name}” aren’t in your presentations yet.`
+          : 'No scripts have been generated yet, so there’s nothing to save.',
+        choices: ready
+          ? [['save', 'Save presentation', 'primary'], ['discard', 'Discard', 'danger'], ['stay', 'Keep editing']]
+          : [['discard', 'Discard import', 'danger'], ['stay', 'Keep editing']],
+      });
+      if (c === 'save' && !importSave({ open: false })) return;
+      if (c === 'discard') { aiAbort?.abort(); ui.imp = null; ui.impImages = null; data.importDraft = null; saveData(); }
+      if (c === 'save' || c === 'discard') goHome();
+    } else if (kind === 'sample') {
+      const deck = deckById(ui.deckId);
+      const c = await askChoice({
+        title: 'Save the sample presentation?',
+        text: 'Save it to keep it, and your progress, in your presentations.',
+        choices: [['save', 'Save', 'primary'], ['discard', 'Don’t save', 'danger'], ['stay', 'Keep practising']],
+      });
+      if (c === 'save') { delete deck.unsaved; saveData(); toast(`Saved “${deck.title}”.`); }
+      if (c === 'discard') { data.decks = data.decks.filter((d) => d !== deck); saveData(); }
+      if (c === 'save' || c === 'discard') goHome();
+    }
+  } finally { leaving = false; }
+}
+
+// A small modal with a title, a sentence and buttons. Resolves to the chosen
+// value, or 'stay' if dismissed (Esc or a tap outside).
+function askChoice({ title, text, choices }) {
+  return new Promise((resolve) => {
+    const dlg = document.createElement('dialog');
+    dlg.className = 'ask';
+    dlg.setAttribute('aria-labelledby', 'askTitle');
+    dlg.innerHTML = `<h2 id="askTitle">${esc(title)}</h2><p>${esc(text)}</p>
+      <div class="ask-actions">${choices.map(([v, label, kind]) =>
+        `<button class="btn ${kind || 'ghost'}" value="${v}">${esc(label)}</button>`).join('')}</div>`;
+    let result = 'stay';
+    dlg.addEventListener('click', (e) => {
+      const b = e.target.closest('button[value]');
+      if (b) { result = b.value; dlg.close(); }
+      else if (e.target === dlg) dlg.close(); // tap on the backdrop
+    });
+    dlg.addEventListener('close', () => { dlg.remove(); resolve(result); });
+    document.body.appendChild(dlg);
+    dlg.showModal();
+    dlg.querySelector('.btn')?.focus();
+  });
 }
 
 // Swipe right to go back. Ignored where a sideways drag already means something
@@ -1202,7 +1288,7 @@ function goHome() {
     if (!start) return;
     const go = start.dragging && (start.dx > window.innerWidth * 0.3 || (start.dx > 60 && Date.now() - start.time < 300));
     reset();
-    if (go) goHome();
+    if (go) leavePage();
   });
   document.addEventListener('touchcancel', () => { if (start) reset(); });
 })();
@@ -1217,7 +1303,7 @@ document.addEventListener('click', (e) => {
   switch (act) {
     case 'home':
     case 'back':
-      goHome(); break;
+      leavePage(); break;
     case 'review': openReview(id); break;
     case 'review-stop': ui.reviewCount = ui.review ? ui.review.pos : 0; ui.review = null; goStep('reviewdone'); break;
     case 'progress': abortListening(); stopSpeaking(); ui.review = null; ui.deckId = id; ui.view = 'progress'; render(); window.scrollTo(0, 0); break;
@@ -1329,7 +1415,7 @@ document.addEventListener('drop', (e) => {
 });
 
 document.addEventListener('keydown', (e) => {
-  if (ui.view !== 'practice') return;
+  if (ui.view !== 'practice' || document.querySelector('dialog[open]')) return;
   const tag = e.target.tagName;
   if (tag === 'TEXTAREA' || tag === 'INPUT' || tag === 'SELECT') {
     if (e.target.id === 'typed' && e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); evaluate(e.target.value); }
