@@ -7,12 +7,14 @@ A browser app for memorising and rehearsing a presentation. It needs no build st
 2. **Hide & recite**: the text is masked (you can turn on first-letter hints). Press the mic or <kbd>Space</kbd> and say the sentence aloud.
 3. **Feedback**: each word turns green (said) or red (missed), with a score. The sentence passes at the pass mark (80% by default).
 4. **Whole slide**: after the last sentence, recite the whole slide from hint words. A timer compares your time with the slide's target time.
-5. A slide counts as mastered once the whole-slide recall passes. The sidebar shows ✓ for mastered slides, ◐ for slides you have started, and ○ for slides you haven't tried.
+5. A slide counts as mastered while your latest whole-slide recall passes. If you later miss it (in practice, review or a dress rehearsal), it goes back to unmastered. The sidebar shows ✓ for mastered slides, ◐ for slides you have started, and ○ for slides you haven't tried.
 
 ## Spaced review
 Every sentence and whole-slide recall you practise gets a next-review time:
 - Missed (below the pass mark): it comes back in **10 minutes**.
 - Passed: it comes back after **1 day**, then 2.5 days, about 6 days, and so on (each interval × 2.5).
+- Passing an item again before it is due doesn't change its schedule.
+- After a dress rehearsal, slides you recalled below the pass mark are due for review straight away.
 
 **Review weak spots** (on the home card, the practice sidebar and the progress page) goes through everything that is due, weakest first, straight in recite mode.
 
@@ -101,7 +103,10 @@ Speech recognition needs `http://localhost` or `https`. It usually does not work
 ## Data
 - Presentations, progress, review schedule and rehearsal history are stored in `localStorage`, in this browser only.
 - PDF slide images are stored in IndexedDB.
-- Use **Export** / **Import JSON** to back up a presentation or move it to another device.
+- **Back up everything** (in the home page settings) saves all presentations with their progress, history and plan to one file. On a phone it opens the share sheet, so you can choose **Save to Files**. Slide images and your API key are not included.
+- **Import JSON** restores a backup: presentations you don't have are added, and ones the backup has a newer copy of are replaced. It also imports a single presentation saved with **Export**.
+- On iPhone, Safari and the home-screen app keep separate data. Use a backup to move presentations between them.
+- The app asks the browser to keep its storage, so it isn't cleared when space runs low.
 
 ## Files
 - `index.html`: the page shell

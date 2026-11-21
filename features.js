@@ -13,10 +13,27 @@ const MINUTE = 60e3;
 const DAY = 864e5;
 
 // Missed → back in 10 minutes. Passed → 1 day, then each interval × 2.5.
+// Passing again before the item is due keeps its schedule, so repeating a
+// sentence in one sitting doesn't push its next review weeks away.
 function scheduleReview(rec, score) {
-  if (score >= data.settings.threshold) rec.ivl = rec.ivl >= DAY ? Math.round(rec.ivl * 2.5) : DAY;
-  else rec.ivl = 10 * MINUTE;
-  rec.due = Date.now() + rec.ivl;
+  const now = Date.now();
+  if (score < data.settings.threshold) { rec.ivl = 10 * MINUTE; rec.due = now + rec.ivl; return; }
+  if (rec.ivl >= DAY && rec.due > now) return; // not due yet: keep the schedule
+  rec.ivl = rec.ivl >= DAY ? Math.round(rec.ivl * 2.5) : DAY;
+  rec.due = now + rec.ivl;
+}
+
+// After a dress rehearsal, slides recalled below the pass mark become due
+// for review now, and their latest score is the rehearsal score.
+function scheduleRehearsalReviews(deck, slides, rows) {
+  deck.progress = deck.progress || {};
+  rows.forEach((row, i) => {
+    const s = slides[i];
+    if (!s || row.coverage == null || row.coverage >= data.settings.threshold) return;
+    const key = s.sentences.length > 1 ? slideKey(s) : sentenceKey(s.sentences[0]);
+    const prev = deck.progress[key] || { best: 0, attempts: 0 };
+    deck.progress[key] = { ...prev, last: row.coverage, ivl: 10 * MINUTE, due: Date.now() };
+  });
 }
 
 // Every practised item (sentence or whole slide) whose review time has come.
@@ -171,13 +188,21 @@ function studyPlan(deck) {
 
   // Leave the last day before the talk for dress rehearsals when possible.
   const learnDays = left <= 1 ? 1 : left - 1;
-  const today = open.slice(0, Math.ceil(open.length / learnDays));
+  // Today's slides are chosen once per day, so finishing them ticks the task
+  // off instead of moving on to the next batch.
+  let pd = deck.planDay;
+  if (!pd || pd.day !== dayKey() || pd.talkDate !== deck.talkDate) {
+    pd = deck.planDay = { day: dayKey(), talkDate: deck.talkDate, slides: open.slice(0, Math.ceil(open.length / learnDays)) };
+    if (!deck.unsaved) saveData();
+  }
+  const today = pd.slides.filter((i) => i < slides.length);
+  const todayLeft = today.filter((i) => slideStatus(deck, slides[i]) !== 'done');
   const tasks = [];
   if (left === 0) {
     tasks.push({ kind: 'rehearse', label: 'One calm dress rehearsal — then rest your voice', done: rehearsedToday });
     if (due) tasks.push({ kind: 'review', label: `Quick review of ${due} weak spot${due > 1 ? 's' : ''}` });
   } else {
-    if (today.length) tasks.push({ kind: 'learn', label: `Learn ${rangeLabel(today)}`, slide: today[0] });
+    if (today.length) tasks.push({ kind: 'learn', label: `Learn ${rangeLabel(today)}`, slide: todayLeft[0], done: !todayLeft.length });
     if (due) tasks.push({ kind: 'review', label: `Review ${due} weak spot${due > 1 ? 's' : ''}` });
     if (left <= 2 || !open.length || (left <= 5 && open.length <= slides.length / 3)) {
       tasks.push({ kind: 'rehearse', label: left <= 1 ? 'Two full dress rehearsals' : 'A full dress rehearsal', done: rehearsedToday });
@@ -287,7 +312,7 @@ function renderProgress(deck) {
   </div>`;
 
   const weak = slides.map((s, i) => {
-    const vals = s.sentences.map((x) => bestOf(deck, sentenceKey(x))).filter((v) => v != null);
+    const vals = s.sentences.map((x) => scoreOf(deck, sentenceKey(x))).filter((v) => v != null);
     return { i, title: s.title, avg: vals.length ? Math.round(vals.reduce((a, b) => a + b, 0) / vals.length) : null };
   }).filter((r) => r.avg != null && r.avg < thr()).sort((a, b) => a.avg - b.avg).slice(0, 5);
 

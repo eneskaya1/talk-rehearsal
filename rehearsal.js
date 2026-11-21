@@ -146,6 +146,7 @@ async function finishRehearsal() {
     slides: rows.map(({ time, target, coverage }) => ({ time, target, coverage })),
   };
   recordRehearsal(deck, session);
+  scheduleRehearsalReviews(deck, slides, rows);
   deck.updated = Date.now();
   saveData();
   Object.assign(r, { phase: 'report', rows, session, stats: st });

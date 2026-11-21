@@ -67,6 +67,8 @@ function saveData() {
 let data = loadData();
 // A sample stays unsaved until you choose to keep it (see leavePage).
 data.decks = data.decks.filter((d) => !d.unsaved);
+// Ask the browser not to clear our storage when space runs low.
+navigator.storage?.persist?.().catch(() => {});
 
 /* ---------------------------- script parsing --------------------------- */
 
@@ -354,12 +356,13 @@ const thr = () => data.settings.threshold;
 const sentenceKey = (text) => 's:' + text;
 const slideKey = (slide) => 'f:' + slide.sentences.join(' ');
 
-function bestOf(deck, key) { return deck.progress?.[key]?.best ?? null; }
+// The latest score for an item (older records may only have a best score).
+function scoreOf(deck, key) { const r = deck.progress?.[key]; return r ? r.last ?? r.best ?? null : null; }
 
 function slideStatus(deck, slide) {
-  const fullBest = slide.sentences.length > 1 ? bestOf(deck, slideKey(slide)) : bestOf(deck, sentenceKey(slide.sentences[0]));
+  const fullBest = slide.sentences.length > 1 ? scoreOf(deck, slideKey(slide)) : scoreOf(deck, sentenceKey(slide.sentences[0]));
   if (fullBest != null && fullBest >= thr()) return 'done';
-  const any = slide.sentences.some((s) => bestOf(deck, sentenceKey(s)) != null);
+  const any = slide.sentences.some((s) => scoreOf(deck, sentenceKey(s)) != null);
   return any ? 'part' : 'none';
 }
 
@@ -473,7 +476,11 @@ function renderHome() {
           <li class="${HAS_TTS ? 'ok' : 'no'}">${HAS_TTS ? '✓ Text-to-speech' : '✗ No text-to-speech'}</li>
           ${location.protocol === 'file:' ? '<li class="no">⚠ Opened as a file — the microphone may be blocked. Serve it from localhost (see README).</li>' : ''}
         </ul>
-        <p class="muted small" style="margin-top:12px">Progress is stored in this browser only. Export a presentation to back it up or move it to another device.</p>
+        <h2 style="margin-top:20px">Backup</h2>
+        <p class="muted small">Your presentations and progress are stored on this device only.
+          On iPhone, Safari and the home-screen app each keep their own copy.
+          Restore a backup with <b>Import JSON</b>.</p>
+        <button class="btn" data-act="backup">Back up everything</button>
       </aside>
     </div>`;
 }
@@ -533,7 +540,7 @@ function updatePreview() {
 
 function stepState(deck, slide, step) {
   const key = step === 'full' ? slideKey(slide) : sentenceKey(slide.sentences[step]);
-  const b = bestOf(deck, key);
+  const b = scoreOf(deck, key);
   return b == null ? '' : b >= thr() ? 'passed' : 'tried';
 }
 
@@ -561,7 +568,7 @@ function renderPractice(deck) {
     <ol class="slide-list">${slides.map((s, i) => {
       const st = slideStatus(deck, s);
       const icon = st === 'done' ? '✓' : st === 'part' ? '◐' : '○';
-      const best = s.sentences.length > 1 ? bestOf(deck, slideKey(s)) : bestOf(deck, sentenceKey(s.sentences[0]));
+      const best = s.sentences.length > 1 ? scoreOf(deck, slideKey(s)) : scoreOf(deck, sentenceKey(s.sentences[0]));
       return `<li><button class="${i === ui.slide && ui.step !== 'done' ? 'active' : ''}" data-act="slide" data-i="${i}">
         <span class="st ${st}">${icon}</span><span class="t">${i + 1}. ${esc(s.title)}</span>
         <span class="sc">${best != null ? best + '%' : ''}</span></button></li>`;
@@ -833,20 +840,64 @@ function openPractice(id, slideIdx) {
   render();
 }
 
+// On phones, hand the file to the share sheet ("Save to Files"); elsewhere, download it.
+async function saveFile(obj, name) {
+  const blob = new Blob([JSON.stringify(obj, null, 2)], { type: 'application/json' });
+  const file = new File([blob], name, { type: 'application/json' });
+  if (matchMedia('(pointer: coarse)').matches && navigator.canShare?.({ files: [file] })) {
+    try { await navigator.share({ files: [file] }); return; }
+    catch (err) { if (err.name === 'AbortError') return; }
+  }
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+
 function exportDeck(id) {
   const d = deckById(id);
   if (!d) return;
-  const blob = new Blob([JSON.stringify({ format: 'talk-rehearsal', version: 1, deck: d }, null, 2)], { type: 'application/json' });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = (d.title.replace(/[^\p{L}\p{N}]+/gu, '-').replace(/^-|-$/g, '') || 'presentation') + '.json';
-  a.click();
-  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  saveFile({ format: 'talk-rehearsal', version: 1, deck: d },
+    (d.title.replace(/[^\p{L}\p{N}]+/gu, '-').replace(/^-|-$/g, '') || 'presentation') + '.json');
+}
+
+// Every saved presentation with its progress, history and plan (not slide images or the API key).
+function backupAll() {
+  const decks = data.decks.filter((d) => !d.unsaved);
+  if (!decks.length) { toast('There are no saved presentations to back up yet.'); return; }
+  saveFile({ format: 'talk-rehearsal', version: 1, backup: true, at: Date.now(), decks }, `talk-rehearsal-backup-${dayKey()}.json`);
+}
+
+// Restore a backup: add presentations you don't have, and replace ones the backup has a newer copy of.
+function restoreBackup(list) {
+  let added = 0, updated = 0, kept = 0;
+  for (const d of list) {
+    if (!d || typeof d.script !== 'string') continue;
+    const deck = {
+      ...d,
+      id: typeof d.id === 'string' && d.id ? d.id : uid(),
+      title: String(d.title || 'Imported presentation').slice(0, 200),
+      lang: LANGS.some((l) => l[0] === d.lang) ? d.lang : 'en-US',
+      progress: d.progress && typeof d.progress === 'object' ? d.progress : {},
+      updated: +d.updated || Date.now(),
+    };
+    delete deck.unsaved;
+    const i = data.decks.findIndex((x) => x.id === deck.id);
+    if (i < 0) { data.decks.push(deck); added++; }
+    else if (deck.updated > (data.decks[i].updated || 0)) { data.decks[i] = deck; updated++; }
+    else kept++;
+  }
+  saveData();
+  const parts = [added && `${added} added`, updated && `${updated} updated`, kept && `${kept} already up to date`].filter(Boolean);
+  toast(parts.length ? `Backup restored: ${parts.join(', ')}.` : 'That backup has no presentations.');
+  render();
 }
 
 async function importDeck(file) {
   try {
     const obj = JSON.parse(await file.text());
+    if (Array.isArray(obj.decks)) { restoreBackup(obj.decks); return; }
     const d = obj.deck || obj;
     if (typeof d.script !== 'string') throw new Error('missing script');
     const deck = {
@@ -1342,6 +1393,7 @@ document.addEventListener('click', (e) => {
     case 'sample': loadSample(); break;
     case 'practice': openPractice(id); break;
     case 'export': exportDeck(id); break;
+    case 'backup': backupAll(); break;
     case 'delete': {
       const d = deckById(id);
       if (d && confirm(`Delete “${d.title}” and its progress?`)) {
