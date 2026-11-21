@@ -410,14 +410,19 @@ function renderHome() {
         <div class="bar"><i style="width:${pct}%"></i></div>
         ${renderPlan(d, true)}
       </div>
-      <div class="row">
+      <div class="row deck-actions">
         <button class="btn primary" data-act="practice" data-id="${d.id}">Practise</button>
-        ${due ? `<button class="btn" data-act="review" data-id="${d.id}">Review (${due})</button>` : ''}
         <button class="btn" data-act="rehearse" data-id="${d.id}">🎤 Rehearse</button>
-        <button class="btn" data-act="progress" data-id="${d.id}">Progress</button>
-        <button class="btn ghost small" data-act="edit" data-id="${d.id}">Edit</button>
-        <button class="btn ghost small" data-act="export" data-id="${d.id}" title="Download as JSON">Export</button>
-        <button class="btn ghost small danger" data-act="delete" data-id="${d.id}">Delete</button>
+        <details class="menu">
+          <summary class="btn" aria-label="More actions for ${esc(d.title)}">More</summary>
+          <div class="menu-list">
+            <button data-act="review" data-id="${d.id}" ${due ? '' : 'disabled'}>Review weak spots${due ? ` (${due})` : ''}</button>
+            <button data-act="progress" data-id="${d.id}">Progress</button>
+            <button data-act="edit" data-id="${d.id}">Edit</button>
+            <button data-act="export" data-id="${d.id}">Export as JSON</button>
+            <button class="danger" data-act="delete" data-id="${d.id}">Delete</button>
+          </div>
+        </details>
       </div>
     </article>`;
   }).join('') : `<div class="card empty">
@@ -543,6 +548,11 @@ function renderPractice(deck) {
     <h2>${esc(deck.title)}</h2>
     <div class="muted small">${done} / ${total} slides mastered</div>
     <div class="bar"><i style="width:${total ? (done / total) * 100 : 0}%"></i></div>
+    ${deck.unsaved ? `<div class="unsaved-note">
+      <span class="tag">Not saved</span>
+      <span class="small muted">This sample isn’t in your presentations yet.</span>
+      <button class="btn small primary" data-act="save-sample" data-id="${deck.id}">Save</button>
+    </div>` : ''}
     <div class="side-actions">
       <button class="btn small" data-act="review" data-id="${deck.id}" ${dueItems(deck).length ? '' : 'disabled'}>Review (${dueItems(deck).length})</button>
       <button class="btn small" data-act="rehearse" data-id="${deck.id}">🎤 Rehearse</button>
@@ -1296,6 +1306,9 @@ function askChoice({ title, text, choices }) {
 /* ---------------------------- events ----------------------------------- */
 
 document.addEventListener('click', (e) => {
+  document.querySelectorAll('details.menu[open]').forEach((m) => {
+    if (!m.contains(e.target) || e.target.closest('.menu-list [data-act]')) m.open = false;
+  });
   const el = e.target.closest('[data-act]');
   if (!el) return;
   const act = el.dataset.act;
@@ -1305,6 +1318,11 @@ document.addEventListener('click', (e) => {
     case 'back':
       leavePage(); break;
     case 'review': openReview(id); break;
+    case 'save-sample': {
+      const d = deckById(id);
+      if (d) { delete d.unsaved; saveData(); toast(`Saved “${d.title}”.`); render(); }
+      break;
+    }
     case 'review-stop': ui.reviewCount = ui.review ? ui.review.pos : 0; ui.review = null; goStep('reviewdone'); break;
     case 'progress': abortListening(); stopSpeaking(); ui.review = null; ui.deckId = id; ui.view = 'progress'; render(); window.scrollTo(0, 0); break;
     case 'slide-go': openPractice(id, +el.dataset.i); break;
@@ -1415,6 +1433,10 @@ document.addEventListener('drop', (e) => {
 });
 
 document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    const m = document.querySelector('details.menu[open]');
+    if (m) { m.open = false; m.querySelector('summary').focus(); return; }
+  }
   if (ui.view !== 'practice' || document.querySelector('dialog[open]')) return;
   const tag = e.target.tagName;
   if (tag === 'TEXTAREA' || tag === 'INPUT' || tag === 'SELECT') {

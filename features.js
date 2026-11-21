@@ -292,9 +292,6 @@ function renderProgress(deck) {
   }).filter((r) => r.avg != null && r.avg < thr()).sort((a, b) => a.avg - b.avg).slice(0, 5);
 
   return `<div class="progress-page">
-    <div class="row" style="margin-bottom:8px">
-      <button class="btn ghost small" data-act="home">← Presentations</button>
-    </div>
     <h1>${esc(deck.title)}</h1>
     <div class="progress-top">
       <section class="card">

@@ -190,6 +190,38 @@ input[type=range] { width: 100%; accent-color: var(--accent); }
 .deck h3 { margin: 0 0 4px; font-size: 1.2rem; }
 .bar { height: 5px; background: var(--surface-2); border-radius: 99px; overflow: hidden; margin-top: 10px; }
 .bar > i { display: block; height: 100%; background: var(--accent); border-radius: 99px; transition: width .3s; }
+.deck-actions { flex-wrap: nowrap; }
+
+/* "More" menu on a presentation card */
+details.menu { position: relative; }
+details.menu > summary { list-style: none; }
+details.menu > summary::-webkit-details-marker { display: none; }
+details.menu > summary::after {
+  content: ""; width: 7px; height: 7px; margin: -3px 0 0 4px;
+  border: solid currentColor; border-width: 0 2px 2px 0; transform: rotate(45deg);
+}
+details.menu[open] > summary { border-color: var(--text); }
+details.menu[open] > summary::after { transform: rotate(225deg); margin-top: 4px; }
+.menu-list {
+  position: absolute; right: 0; top: calc(100% + 6px); z-index: 5; min-width: 210px;
+  display: flex; flex-direction: column; padding: 6px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-md);
+  box-shadow: 0 16px 36px -18px rgba(28,27,51,.45);
+}
+.menu-list button {
+  text-align: left; padding: 10px 12px; border: 0; border-radius: var(--r-sm); background: none;
+  color: var(--text); font: 500 .95rem var(--sans); cursor: pointer;
+}
+.menu-list button:hover:not(:disabled) { background: var(--surface-2); }
+.menu-list button:disabled { color: var(--muted); opacity: .6; cursor: default; }
+.menu-list button.danger { color: var(--bad); margin-top: 4px; border-top: 1px solid var(--border); border-radius: 0 0 var(--r-sm) var(--r-sm); }
+
+/* Unsaved sample, in the practice sidebar */
+.unsaved-note {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; margin-top: 14px;
+  padding: 10px 12px; border-radius: var(--r-sm); background: var(--surface); border-left: 3px solid var(--amber);
+}
+.unsaved-note .small { flex: 1 1 140px; }
 .empty { text-align: center; padding: 40px 20px; color: var(--muted); border-style: dashed; }
 .empty p:first-child { font: 500 1.2rem var(--serif); color: var(--text); }
 .support { font-size: .88rem; margin: 0; padding-left: 0; list-style: none; }

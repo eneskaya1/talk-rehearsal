@@ -3,7 +3,7 @@
 // - Libraries from the CDNs: cache first (they are versioned and never change).
 // - Everything else (e.g. the Claude API) is not touched.
 
-const VERSION = 'v4';
+const VERSION = 'v5';
 const APP_CACHE = `app-${VERSION}`;
 const LIB_CACHE = 'libs-v1';
 const APP_FILES = [
